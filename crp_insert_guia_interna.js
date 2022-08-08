@@ -25,17 +25,17 @@
  *  JS: crp_insert_guia_interna
  *      Version:    V1.0
  *      Date:       2022.02.26                                          
- *      Description: Insert the internal guide JSON CRPi in the intermediate table AXIONAL.     
+ *      Description: Insert the internal guide JSON CRPi in the intermediate table AXIONAL     
  * 
  */
- function crp_insert_guia_interna(pObjData) {
+ function crp_insert_guia_interna(pObjData) { 
 
     /**
      * LOCAL FUNCTION: __getAlmacen
      * 
      * Función local que obtiene almacén origen o destino.
      * 
-     *      @param   {string}   pStrCodalmCRP   Código del almacén.           
+     *      @param   {string}   pStrCodalmCRP   Código del almacén           
      * 
      */ 
     function __getAlmacen(pStrCodalmCRP){ 
@@ -204,7 +204,7 @@
      * Función local donde valida que coincidan datos de las guías internas con la transformación logística origen y destino .         
      * 
      */ 
-     function __validateOrigenDestino(mStrTable, mObjValidate){ 
+    function __validateOrigenDestino(mStrTable, mObjValidate){ 
         
         var mStrTableValidate =  mStrTable == 'ORIGEN' ? 'glog_transflog_ori' : 'glog_transflog_dst';  
 
@@ -374,8 +374,7 @@
         
         if (unidadAxional !=  mObjGeanmov.unidadmedida){
             throw `Artículo [${mObjGuiaDetalle.codigoproducto}] con unidad de medida[${unidadAxional}] diferente a la unidad informada en origen [${mObjGeanmov.unidadmedida}] .`
-        }
-
+        } 
     } 
 
     /**
@@ -384,7 +383,7 @@
      * Función local que procesa la transformación logística generando el movimiento interno.         
      * 
      */ 
-     function __procesarTransLogistica(mIntIdTransLogistica){ 
+    function __procesarTransLogistica(mIntIdTransLogistica){ 
 
         var mObjMovEan = Ax.db.executeScriptOrQuery(`
                 <call name='glog_transflog_head_process_1' into='m_cabean, m_docser'>
@@ -404,9 +403,10 @@
      * y los datos de control de la guia interna cabecera.         
      * Dependiendo del caso actualiza la línea de la guia interna detalle.
      */ 
-     function __updatedDataControl(mObjDataUpdate){ 
+    function __updatedDataControl(mObjDataUpdate){ 
 
         if (mObjDataUpdate.updateean == 'SI') {
+
             // ===============================================================
             // Actualiza el movimiento interno  a no modificable
             // y el indicador de CRP integrado = [1], refter = numeroguia
@@ -469,7 +469,8 @@
         // ===============================================================
         // Inserta cabecera del movimiento interno.  
         // =============================================================== 
-        var mIntCabmov = Ax.db.executeFunction ('geanmovh_inserta',
+
+        var mIntCabmov = Ax.db.executeFunction('geanmovh_inserta',
             [ 
                 null,                                                                // Delegación            
                 null,                                                                // Departamento          
@@ -493,15 +494,15 @@
         // Valida si se ha generado el movimiento.
         // ===============================================================
         mStrDocser = Ax.db.executeGet(`
-                <select>
-                    <columns> 
-                        docser
-                    </columns>
-                    <from table='geanmovh' />
-                    <where>
-                        cabid = ?
-                    </where>
-                </select>`, mIntCabmov);
+            <select>
+                <columns> 
+                    docser
+                </columns>
+                <from table='geanmovh' />
+                <where>
+                    cabid = ?
+                </where>
+            </select>`, mIntCabmov);
         
         if (!mStrDocser) {throw `Movimiento Id: [${mIntCabmov}] no encontrado`} 
 
@@ -572,7 +573,7 @@
                     precio  : mObjGuiaDetalle.precio,                            // Precio del artículo
                     canabo  : 0,
                     canrec  : 0,
-                    indmod  : 'S',
+                    indmod  : 'N',
                     linori  : null
                 }
     
@@ -634,6 +635,197 @@
         return mIntCodProveedor;
     }
 
+    /**
+     * LOCAL FUNCTION: __insertAlbaranCompra
+     * 
+     * Función local que crea albarán de compras desde un pedido de compra 
+     * 
+     */ 
+    function __insertAlbaranCompra(mIntCabped){ 
+
+        // ===============================================================
+        // Obtener datos del pedido de compras
+        // =============================================================== 
+        var mObjDocori = Ax.db.executeQuery(`
+            <select>
+                <columns>
+                    gcompedh.delega, gcompedh.depart, gcompedh.tercer,
+                    gcompedh.tipdir, gcompedh.divisa, gcompedh.cambio,
+                    gcompedh.tipefe, gcompedh.frmpag, gcompedh.terenv,
+                    gcompedh.direnv, gcompedh.terexp, gcompedh.direxp,
+                    gcompedh.numexp, gcompedh.portes, gcompedh.terfac,
+                    gcompedh.dirfac, gcompedh.dtogen, gcompedh.dtopp,
+                    gcompedh.porgar, gcompedh.clasif, gcompedh.refter,
+                    gcompedh.nommos, gcompedh.direcc, gcompedh.codnac,
+                    gcompedh.nomnac, gcompedh.codpos, gcompedh.poblac,
+                    gcompedh.codprv, gcompedh.nomprv, gcompedh.telef1,
+                    gcompedh.telef2, gcompedh.fax,    gcompedh.email,
+                    gcompedh.codpre, gcompedh.codpar, gcompedh.estcab,
+                    gcompedh.codalm, gcompedh.fecha,  gcompedh.docser 
+                </columns>
+                <from table='gcompedh' />
+                <where>
+                    gcompedh.cabid = ?
+                </where>
+            </select>`, mIntCabped).toOne();
+
+        if (mObjDocori.estcab != 'V') {
+            throw `Pedido de compras no validado cabid [${mIntCabped}]`
+        } 
+
+        let mObjGcommovh = {
+            tipdoc : 'AFAI',
+            docori : mObjDocori.docser,
+            fecmov : mObjDocori.fecha,
+            //fecrec : pObjGeanmovh.fecrec,
+            almori : mObjDocori.codalm,
+            delega : mObjDocori.delega,
+            depart : mObjDocori.depart,
+            tercer : mObjDocori.tercer,
+            tipdir : '0',
+            divisa : mObjDocori.divisa,
+            cambio : mObjDocori.cambio,
+            tipefe : mObjDocori.tipefe,
+            frmpag : mObjDocori.frmpag,
+            terenv : mObjDocori.terenv,
+            direnv : mObjDocori.direnv,
+            terexp : mObjDocori.terexp,
+            direxp : mObjDocori.direxp,
+            numexp : mObjDocori.numexp,
+            portes : mObjDocori.portes,
+            terfac : mObjDocori.terfac,
+            dirfac : mObjDocori.dirfac,
+            dtogen : mObjDocori.dtogen,
+            dtopp  : mObjDocori.dtopp,
+            porgar : mObjDocori.porgar, 
+            clasif : mObjDocori.clasif,
+            refter : mObjDocori.refter,
+            coment : null,
+            nommos : mObjDocori.nommos,
+            direcc : mObjDocori.direcc,
+            codnac : mObjDocori.codnac,
+            nomnac : mObjDocori.nomnac,
+            codpos : mObjDocori.codpos,
+            poblac : mObjDocori.poblac, 
+            codprv : mObjDocori.codprv,
+            nomprv : mObjDocori.nomprv,
+            telef1 : mObjDocori.telef1,
+            telef2 : mObjDocori.telef2,
+            fax    : mObjDocori.fax,
+            email  : mObjDocori.email,
+            codpre : mObjDocori.codpre,
+            codpar : mObjDocori.codpar,
+            indmod : 'N'
+        }
+
+        // ====================================================================
+        // Crear albarán de compras con los datos del pedido de compra
+        // ====================================================================         
+        mIntCabdes = Ax.db.call('gcommovh_Insert', 'GCOMPEDH', mObjGcommovh);
+
+
+        // =====================================================================
+        // Copiar líneas del pedido de compras -> líneas del albarán de compras
+        // ===================================================================== 
+        __insertGcompedlGcommovl(mObjGcommovh, mIntCabped, mIntCabdes)
+
+        // ======================================================================
+        // Establecer el estado principal de los pedidos de origen
+        // ======================================================================
+        Ax.db.executeProcedure("gcompedl_set_head_estado", mIntCabped);
+
+        // ===============================================================
+        // Validar albarán de compras.
+        // ===============================================================
+        Ax.db.call("gcommovh_Valida", mIntCabdes); 
+
+        // ===============================================================
+        // Controlar que esté validado el albarán de compras
+        // =============================================================== 
+        var mStrEstadoAlbCompra = Ax.db.executeGet(`
+                <select>
+                    <columns>estcab</columns>
+                    <from table='gcommovh'/> 
+                    <where>
+                        cabid = ?
+                    </where>
+                </select>
+        `,mIntCabdes);
+
+        if (mStrEstadoAlbCompra != 'V') {
+            throw `Albarán de compras no validado`
+        }  
+    }
+
+    /**
+     * LOCAL FUNCTION: __insertGcompedlGcommovl
+     * 
+     * Función local que copia las líneas del pedido de compra a las líneas
+     * del albará de compras. 
+     * 
+     */ 
+    function __insertGcompedlGcommovl(mObjGcommovh, mIntCabped, mIntCabdes) { 
+
+        // ===============================================================
+        // Guardar datos recibidos del API (Cabecera y detalle).  
+        // =============================================================== 
+        Ax.db.update("gcompedh", {post_hupd: 1 }, {cabid : mIntCabped});
+    
+        // ===============================================================
+        // Obtener líneas del pedido de compra.                                         
+        // ===============================================================
+        var mRsGcompedl = Ax.db.executeQuery(`
+            <select>
+                <columns>
+                    gcompedl.orden,  gcompedl.codart,
+    
+                    CASE WHEN gcompedl.varlog IS NOT NULL
+                            THEN gcompedl.varlog
+                            ELSE gartvarl_get_comvldef(
+                                    ? ,
+                                    ? ,
+                                    ? ,
+                                    gcompedl.codart)
+                        END varlog,
+    
+                    gcompedl.desvar, gcompedl.numlot,        gcompedl.canped,
+                    gcompedl.canped canmov, gcompedl.udmcom, gcompedl.canpre,
+                    gcompedl.udmpre, gcompedl.canalt, gcompedl.udmalt, 
+                    gcompedl.precio, gcompedl.dtoli1, gcompedl.dtoli2,
+                    gcompedl.dtoli3, gcompedl.dtoimp, gcompedl.pretar,
+                    gcompedl.dtotar, gcompedl.terexp, gcompedl.direxp,
+                    gcompedl.desamp, gcompedl.regalo, 'N' indmod,
+                    gcompedl.linacu, gcompedl.linid linori,
+                    gcompedl.canbon, gcompedl.linrel,
+                    gcompedl.cabid cabori,
+                    'gcompedh'     tabori,
+                    garticul.lotes
+                </columns>
+                <from table="gcompedl">
+                    <join table="garticul">
+                        <on>gcompedl.codart = garticul.codigo</on>
+                    </join> 
+                </from>
+                <where>
+                    gcompedl.cabid = ?
+                </where>
+                <order>gcompedl.linid</order>
+            </select>`, mObjGcommovh.almori, mObjGcommovh.tercer, mObjGcommovh.tipdir, mIntCabped); 
+    
+        for(var mRowGcompedl of mRsGcompedl){
+            
+            mRowGcompedl.cabid = mIntCabdes;
+            mRowGcompedl.ubiori = '0';
+            mRowGcompedl.ubides = '0';
+
+            // ===============================================================
+            // Crear líneas de albarán de compra.                                         
+            // ===============================================================   
+            Ax.db.insert("gcommovl", mRowGcompedl);
+    
+        } 
+    }
+
     // ===============================================================
     // Guardar datos recibidos del API (Cabecera y detalle).  
     // ===============================================================
@@ -652,10 +844,7 @@
         
         var mIntEstado = 1; // 0: Pendiente , 1: Integrado c/ movimiento
 
-        // =================================================================
-        // Setear datos requeridos para crear Transformación logistica.
-        // =================================================================
-        var mDateFechaGuia = (new Ax.util.Date(mObjData.fechaguia)).format("dd-MM-yyyy"); 
+        var mDateFechaGuia = (new Ax.util.Date(mObjData.fechaguia)).format("dd-MM-yyyy");  // Fecha de la guía interna
 
         var mObjDataUpdateGuia = {tabdes : 'geanmovh', fecharecepcion : mDateFechaGuia , updateguiadetalle : 'SI', updateean : 'SI', numeroguia : mObjData.numeroguia, estado : mIntEstado}; 
 
@@ -688,7 +877,6 @@
         // Insertar guia interna detalle.
         // ============================================================= 
         for (var mObjDetalleGuia of mArrGuiaInternaDetalle) { 
-
             
             mObjDetalleGuia.idguiainterna        = mIntIdGuia; 
             mObjDetalleGuia.idguiainternadetalle = 0;
@@ -736,7 +924,7 @@
                                         cantidad              : Math.abs(mObjDetalleGuia.cantidad), 
                                         unidadmedida          : __getUnidadMedida(mObjDetalleGuia.unidadingreso)
                                     }
-                mObjKitDetalle.componentesd.push(mObjComponentes)
+                mObjKitDetalle.componentesd.push(mObjComponentes);
               
             }
 
@@ -752,18 +940,16 @@
                                         cantidad              : Math.abs(mObjDetalleGuia.cantidad),
                                         unidadmedida          : __getUnidadMedida(mObjDetalleGuia.unidadingreso)
                                     }
-                mObjKitDetalle.componenteso.push(mObjComponentes)
+                mObjKitDetalle.componenteso.push(mObjComponentes);
           
             }
         } 
 
         // =================================================================
         // Guardar cantidad de items de los componentes 
-        // =================================================================
-
+        // ================================================================= 
         mObjKitDetalle.cantidaditemso = mObjKitDetalle.componenteso.length;
-        mObjKitDetalle.cantidaditemsd = mObjKitDetalle.componentesd.length;
-
+        mObjKitDetalle.cantidaditemsd = mObjKitDetalle.componentesd.length; 
 
         Ax.db.commitWork();
 
@@ -839,8 +1025,7 @@
                     
                 }else{
                     throw `Guia Nro : [${mObjData.numeroguia}] no tiene informado el código punto de consumo`
-                }
-                
+                } 
             }
 
             if(mObjData.codigoalmacendestino && mObjData.codigoalmacendestino != 'NULL'){
@@ -883,6 +1068,7 @@
             if (mObjData.idtipotransaccion == 8) { 
 
                 var mStrLote = '0'; 
+                var mIntCantidad = 0;
 
                 for (var mRowGuiaDetalle of mArrGuiaInternaDetalle) { 
 
@@ -896,13 +1082,15 @@
                     if (mRowGuiaDetalle.lote) {
                         mStrLote = mRowGuiaDetalle.lote; 
                     }
-                    //var mIntCantidad = mRowGuiaDetalle.cantidad;
 
-                    var mObjGomalbh = Ax.db.executeQuery(`
+                    mIntCantidad = mRowGuiaDetalle.cantidad;
+
+                    var mObjGcomalbh = Ax.db.executeQuery(`
                             <select>
                                 <columns> 
                                     gcomalbl.linid,
                                     gcomalbl.canmov,
+                                    gcomalbl.codart,
                                     gcomalbh.almori
                                 </columns>
                                 <from table='gcomalbh'>
@@ -920,11 +1108,11 @@
                                 </where>
                             </select>`, mStrGuiaConsignador, mStrCodigoConsignador, mRowGuiaDetalle.codigoproducto, mStrLote).toOne(); 
                     
-                    if (!mObjGomalbh.linid) {throw `Guia consignador Nro : [${mStrGuiaConsignador}] con artículo [${mRowGuiaDetalle.codigoproducto}] no tiene albarán de compra.`}; 
+                    if (!mObjGcomalbh.linid) {throw `Guia consignador Nro : [${mStrGuiaConsignador}] con artículo [${mRowGuiaDetalle.codigoproducto}] no tiene albarán de compra.`}; 
                     
                 } 
                 
-                if(mObjGomalbh.almori){
+                if(mObjGcomalbh.almori){
 
                     // =============================================================
                     // Obtener tipo de almacén consignador.
@@ -943,7 +1131,7 @@
                                     AND galmacen.estado = 'A'
                                     AND (galmacen.fecbaj IS NULL OR galmacen.fecbaj &gt;= <today />)
                                 </where>
-                            </select>`, mObjGomalbh.almori).toOne(); 
+                            </select>`, mObjGcomalbh.almori).toOne(); 
 
                     // ===============================================================
                     // Consignaciones individuales 
@@ -952,16 +1140,17 @@
 
                         mStrReposicion = 'S';
 
-                        // if (mObjGomalbh.canmov != mIntCantidad) {
-                        //     throw `Guia consignador Nro : [${mStrGuiaConsignador}] tiene albarán de compra con diferentes cantidades a la guía.`
-                        // }; 
+                        if(!Ax.math.bc.equals(new Ax.math.BigDecimal(mObjGcomalbh.canmov), new Ax.math.BigDecimal(mIntCantidad)) ){
+                        
+                            throw `Artículo [${mObjGcomalbh.codart}] con cantidad informada [${mIntCantidad}] diferente a la cantidad [${mObjGcomalbh.canmov}] del albarán de compra.`
+                        }
 
                         // =======================================================================================
                         // Inserta EAN cabecera y línea  que mueve stock de Almcacén de consignación al principal
                         // ======================================================================================= 
-                        mObjDataEan.tipdoc = 'TCDP'                 // Cuenta DEPO -> DISP 
-                        mObjDataEan.codalmori = mObjGomalbh.almori; // Almacén de consignación (DEPO)
-                        mObjDataEan.codalmdst = 'CRP0282P';         // Almacén principal (DISP) 
+                        mObjDataEan.tipdoc = 'TCDP'                  // Cuenta DEPO -> DISP 
+                        mObjDataEan.codalmori = mObjGcomalbh.almori; // Almacén de consignación (DEPO)
+                        mObjDataEan.codalmdst = 'CRP0282P';          // Almacén principal (DISP) 
 
                         mIntTransaccion = __insertGean(mObjDataEan, mArrGuiaInternaDetalle, mObjData, mObjDataUpdateGuia); 
 
@@ -972,7 +1161,7 @@
                             {   
                                 auxchr2 : 'S'
                             }, 
-                            {linid: mObjGomalbh.linid}
+                            {linid: mObjGcomalbh.linid}
                         ); 
                     }
 
@@ -982,160 +1171,142 @@
                     else if(mStrTipoAlmacen.auxfec1 == 'M'){ 
 
                         // ===================================================================================
-                        // Realizar pedido de compra y marcar auxchr2 = 'S' (consumida) 
+                        // Realizar pedido de compra
                         // =================================================================================== 
-
-                        var mIntCabgen = null;
+                        var mIntCabped = null;
                         var mOldTerdep = '';
                         var mIntCodProveedor = ''; 
                         var mStrLote = '0'; 
-                        var mDateFecVencimiento = null;
+                        //var mDateFecVencimiento = null;
+                        var mObjDocori = null;
 
                         for (var mObjDetalle of mArrGuiaInternaDetalle) {
                         
                             mIntCodProveedor = __getCodigoConsignador(mObjDetalle); 
                     
                             if (mIntCodProveedor !== mOldTerdep) {
-                
-                                if (mIntCabgen !== null ) {
+                                
+                                if (mIntCabped !== null ) {
                                     
                                     // ===============================================================
                                     // Validar la cabecera
                                     // ===============================================================      
-                                    Ax.db.call("gcommovh_Valida", mIntCabgen);
+                                    Ax.db.call("gcompedh_Valida", mIntCabped);
 
                                     // ===============================================================
-                                    // Controlar que esté validado el albarán de compras
-                                    // =============================================================== 
-                                    var mStrEstadoAlbCompra = Ax.db.executeGet(`
-                                            <select>
-                                                <columns>estcab</columns>
-                                                <from table='gcommovh'/> 
-                                                <where>
-                                                    cabid = ?
-                                                </where>
-                                            </select>
-                                    `,mIntCabgen);
-
-                                    if (mStrEstadoAlbCompra != 'V') {
-                                        throw `Albarán de compras no validado`
-                                    }
+                                    // Crear albarán de compras
+                                    // ===============================================================
+                                    __insertAlbaranCompra(mIntCabped);
                                 } 
 
+                                // ===============================================================
+                                // Obtener unidad de medida de compra
+                                // =============================================================== 
+                                var mObjGarticul = Ax.db.executeQuery(`
+                                        <select>
+                                            <columns>          
+                                                udmcom,
+                                                nomart
+                                            </columns>
+                                            <from table='garticul'/> 
+                                            <where>
+                                                codigo=?
+                                            </where>
+                                        </select>
+                                    `, mObjDetalle.codigoproducto).toOne(); 
+
+                                // ===============================================================
+                                // Fechas
+                                // ===============================================================
                                 let mDateFecha =  new Ax.sql.Date(); 
+
+                                let mIntDiadem = Ax.db.executeFunction('gartprov_get_diadem',
+                                                    mIntCodProveedor, 'CRP0282P', 
+                                                    mObjDetalle.codigoproducto, 0,
+                                                    mObjGarticul.udmcom).toValue();
+                                    
+                                mDateFecent = mDateFecha.addDay(mIntDiadem);
                                 
                                 // ===============================================================
-                                // Inserta albarán de compra cabecera si no existe 
+                                // Inserta pedido de compra cabecera si no existe 
                                 // =============================================================== 
-                                var mIntCabgen = Ax.db.call("gcommovh_Insert", "GDTOCOSR", 
-                                    {
-                                        tipdoc : 'AFSO',
-                                        empcode: 125,
-                                        delega : 'CRP0',
-                                        depart : '282P',
-                                        almori : 'CRP0282P',
-                                        refter : mObjData.numeroguia,
-                                        tercer : mIntCodProveedor,  
-                                        tipdir : '0',
-                                        fecmov : mDateFecha,
-                                        fecpro : mDateFecha,
-                                        dtogen : 0,
-                                        dtopp  : 0
-                                    }
-                                );
+                                let mObjGcompedh = {
+                                    cabid     : 0,
+                                    tipdoc    : "PFAD",
+                                    empcode   : 125,
+                                    delega    : 'CRP0',
+                                    depart    :'282P',
+                                    fecha     : mDateFecha,
+                                    fecini    : mDateFecha,
+                                    fecfin    : mDateFecent,
+                                    tercer    : mIntCodProveedor,
+                                    tipdir    : "0",
+                                    refter    : mObjData.numeroguia,
+                                    codalm    : 'CRP0282P'
+                                }
+
+                                mIntCabped = Ax.db.call("gcompedh_Insert","gcompedh_GenGcompedh", mObjGcompedh);
                 
                                 mOldTerdep = mIntCodProveedor;
+                                
                             } 
-
-                            // ===============================================================
-                            // Obtener unidad de medida de compra
-                            // =============================================================== 
-                            var mObjGarticul = Ax.db.executeQuery(`
-                                    <select>
-                                        <columns>          
-                                            udmcom,
-                                            nomart
-                                        </columns>
-                                        <from table='garticul'/> 
-                                        <where>
-                                            codigo=?
-                                        </where>
-                                    </select>
-                                `, mObjDetalle.codigoproducto).toOne(); 
 
                             if (mObjDetalle.lote) {
                                 mStrLote = mObjDetalle.lote; 
-                                mDateFecVencimiento = (new Ax.util.Date(mObjDetalle.fechavencimiento)).format("dd-MM-yyyy")
+                                //mDateFecVencimiento = (new Ax.util.Date(mObjDetalle.fechavencimiento)).format("dd-MM-yyyy")
                             } 
-
-                            // ===============================================================
-                            // Grabar la línea de albarán de compra
-                            // =============================================================== 
-                            Ax.db.insert("gcommovl",
+                            
+                            Ax.db.insert("gcompedl",
                                 {
-                                    cabid   : mIntCabgen,
-                                    linid   : 0, 
-                                    codart  : mObjDetalle.codigoproducto,
-                                    varlog  : 0,
-                                    numlot  : mStrLote,
-                                    batch_expdate : mDateFecVencimiento,
-                                    canmov  : mObjDetalle.cantidad,
-                                    canpre  : mObjDetalle.cantidad,
-                                    canrec  : 0,
-                                    terdep  : 0,
-                                    ubiori  : "0",
-                                    ubides  : "0",
-                                    precio  : null,
-                                    impnet  : 0,
-                                    indmod  : "N",
-                                    regalo  : "M",
-                                    udmcom  : mObjGarticul.udmcom,
-                                    udmpre  : mObjGarticul.udmcom,
-                                    auxchr2 : 'N'      // Consumido
-                                }
-                            );
+                                    linid    : 0,
+                                    cabid    : mIntCabped,
+                                    entini   : mDateFecent,
+                                    codart   : mObjDetalle.codigoproducto,
+                                    numlot   : mStrLote,
+                                    varlog   : 0,
+                                    desvar   : mObjGarticul.nomart,
+                                    canped   : mObjDetalle.cantidad,
+                                    canadj   : 0,
+                                    canext   : 0,
+                                    canser   : 0,
+                                    canfac   : 0,
+                                    udmcom   : mObjGarticul.udmcom,
+                                    impnet   : 0,
+                                    canpre   : mObjDetalle.cantidad,
+                                    udmpre   : mObjGarticul.udmcom
+                                });
+
                         }
                         
                         // =======================================================================
                         // Validar cabecera del albarán de compra
                         // Al validar crea un movimiento interno tipdoc :'ENTS' cuenta NSAL - DISP
                         // ======================================================================= 
-                        if(mIntCabgen !== null) {   
+                        if(mIntCabped !== null) {   
 
-                            Ax.db.call("gcommovh_Valida", mIntCabgen);
+                            Ax.db.call("gcompedh_Valida", mIntCabped);
 
                             // ===============================================================
-                            // Controlar que esté validado el albarán de compras
-                            // =============================================================== 
-                            var mStrEstadoAlbCompra = Ax.db.executeGet(`
-                                    <select>
-                                        <columns>estcab</columns>
-                                        <from table='gcommovh'/> 
-                                        <where>
-                                            cabid = ?
-                                        </where>
-                                    </select>
-                            `,mIntCabgen);
-
-                            if (mStrEstadoAlbCompra != 'V') {
-                                throw `Albarán de compras no validado`
-                            } 
+                            // Crear albarán de compras
+                            // ===============================================================
+                            __insertAlbaranCompra(mIntCabped);
                         } 
+
+                        mObjDataEan.flagterdep = 'N';                            // No informar terdep en la línea
 
                     }else{
 
-                        throw `Almacén [${mObjGomalbh.almori}] no es de tipo consignación.`
-                    }       
-
+                        throw `Almacén [${mObjGcomalbh.almori}] no es de tipo consignación.`
+                    } 
                 } 
 
                 // ===============================================================
                 // Inserta EAN cabecera y línea 
                 // =============================================================== 
-                mObjDataEan.tipdoc = 'TRAL' //Cuenta DISP -> DISP   // Usar la tipología existente o crear uno nuevo
+                mObjDataEan.tipdoc = 'TRAL'                              //Cuenta DISP -> DISP   
                 mObjDataEan.codalmori = 'CRP0282P';
-                mObjDataEan.codalmdst = mObjAlmacenOri.codalm_axional;  // FAR CTR QUIRURGICO (CRP0290F) 
-                mObjDataEan.flagterdep = 'N';  // No informar terdep en la línea
+                mObjDataEan.codalmdst = mObjAlmacenOri.codalm_axional;   // FAR CTR QUIRURGICO (CRP0290F) 
+
 
                 var mIntEan = __insertGean(mObjDataEan, mArrGuiaInternaDetalle, mObjData, mObjDataUpdateGuia);
 
@@ -1151,7 +1322,7 @@
             // ===============================================================
             // Inserta EAN cabecera y línea según la tabla semaforo 
             // ===============================================================     
-            mObjDataEan.tipdoc = mStrTipologia;
+            mObjDataEan.tipdoc    = mStrTipologia;
             mObjDataEan.codalmori = mObjAlmacenOri.codalm_axional;
             mObjDataEan.codalmdst = mObjAlmacenDes.codalm_axional;     
 
@@ -1196,6 +1367,9 @@
             // 15 O/PRODUCCIÓN MULTIDOSIS
             if (mObjData.idtipotransaccion == 13 || mObjData.idtipotransaccion == 14 || mObjData.idtipotransaccion == 15) { 
 
+                // =================================================================
+                // Setear datos requeridos para crear Transformación logistica.
+                // ================================================================= 
                 let mObjTransforLogistica = { 
                     trfh_type     : mStrTipologia,
                     trfh_date     : mDateFechaGuia,
@@ -1237,8 +1411,6 @@
                     // Comprobar que la información obtenida de las recetas coindida con los componentes.
                     // de la orden de producción.  
                     // ================================================================================== 
-                    //var mIntCantidadItems = mObjKitDetalle.componentesd.length; 
-
                     for (var mObjComponented of mObjKitDetalle.componentesd) {
 
                         mObjComponented.idtransformacionlogistica = mIntIdTransLogistica;
@@ -1285,25 +1457,24 @@
                         __validateOrigenDestino('ORIGEN', mObjComponenteo);
 
                     } 
-                    
                 } 
 
                 if (mObjData.idtipotransaccion == 13 || mObjData.idtipotransaccion == 14) {
 
-                    // =========================================================================
+                    // ==================================================================================================
                     // Obtener Producción (alta stock) para validar que se tenga el registro.  
-                    // ========================================================================= 
+                    // ================================================================================================== 
                     var mRsProduccionAlta = __getGuiaInterna(mObjData.numeroguia,  'AND c.idtipotransaccion IN(16, 17)')
 
-                    // =======================================================================
+                    // ==================================================================================================
                     // Obtener COMPONENTES (baja stock) para validar que se tenga el registro.  
-                    // ======================================================================= 
+                    // ================================================================================================== 
                     var mRsComponentes = __getGuiaInterna(mObjData.numeroguia,  'AND c.idtipotransaccion IN(21, 22)')  
 
-                    // ========================================================================
+                    // ===========================================================================
                     // Cuando se tenga Producción (alta stock) y COMPONENTES (baja stock). 
                     // Validar que coincidan los datos con la orden de producción. 
-                    // ========================================================================        
+                    // ===========================================================================        
                     if(mRsProduccionAlta.getRowCount() != 0 && mRsComponentes.getRowCount() != 0){ 
 
                         for (var mRowProduccionAlta of mRsProduccionAlta) {
@@ -1315,8 +1486,6 @@
                             __validateOrigenDestino('DESTINO', mRowProduccionAlta); 
 
                         } 
-
-                        
 
                         for (var mObjComponenteo of mRsComponentes) {
 
@@ -1363,6 +1532,7 @@
                     // Actualizar movimiento interno y guia interna cabecera y detalle.
                     // =============================================================== 
                     __updatedDataControl(mObjDataUpdateGuia); 
+
                 }else{
 
                     // =====================================================================
@@ -1525,6 +1695,7 @@
                         mStrMensaje = 'Se recibió guía interna. A la espera de los documentos complementarios';
                     }        
                 }else{
+
                     mStrMensaje = 'Se recibió guía interna. A la espera de los documentos complementarios';
                 }      
             } 
@@ -1579,7 +1750,6 @@
         .status(406)
         .entity(mObjRequest)
         .type("application/json")
-        .build();
-
+        .build(); 
     } 
 }
